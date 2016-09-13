@@ -88,7 +88,7 @@ class ABSplit {
             this.startY = startY
             this.endY = endY
 
-            if (depth <= 4) {
+            if (depth <= 3) {
                 createChildren()
             } else {
                 this.contents = getGeneratedAutomata(endX - startX, endY - startY)
@@ -143,9 +143,12 @@ class ABSplit {
     }
 }
 
-fun writeToFile(currentMap: Array<Array<Char>>, file: File) {
+fun writeToFile(currentMap: Array<Array<Char>>, file: File, append: Boolean = false) {
     val writer = StringBuffer()
-    file.writeText("")
+
+    if (!append) {
+        file.writeText("")
+    }
 
     for (array in currentMap) {
         for (char in array) {
