@@ -6,68 +6,89 @@ import java.util.*
 private var WALL_PROB = 0.45f
 
 fun main(args: Array<String>) {
-    var automata = CellularAutomata()
+    File("automata.txt").writeText("")
 
-    var array = automata.generateMap(80, 50)
+    var automata = CellularAutomata(20, 20)
+    var array = automata.generateMap()
 
-    writeToFile(array, File("automata.txt"))
 }
 
 class CellularAutomata {
 
     private var random: Random
+    private var currentIteration: Array<Array<Char>>
+    private var roomList: ArrayList<Room>
 
-    constructor() {
+    constructor(sizeX: Int, sizeY: Int) {
         random = Random()
+        currentIteration = generatePreMap(sizeX, sizeY)
+        roomList = ArrayList<Room>()
+        generateMap()
     }
 
-    fun generateMap(sizeX: Int, sizeY: Int, floodFill: Boolean = true): Array<Array<Char>> {
-        var currentIteration = Array(sizeY, { y -> Array(sizeX, { x -> getRandomMapThing(sizeX, sizeY, x, y) }) })
+    fun getArray(): Array<Array<Char>> {
+        return currentIteration
+    }
+
+    fun getRoomList(): List<Room> {
+        return roomList
+    }
+
+    fun generatePreMap(sizeX: Int, sizeY: Int): Array<Array<Char>> {
+        var preMap = Array(sizeY, { y -> Array(sizeX, { x -> getRandomMapThing(sizeX, sizeY, x, y) }) })
+
+//        for (y in 0..preMap.size - 1) {
+//            preMap[y][10] = '.'
+//            preMap[y][11] = '.'
+//        }
+
+        return preMap
+    }
+
+    fun generateMap(): Array<Array<Char>> {
+        writeToFile(currentIteration, File("automata.txt"), true)
 
         for (iteration in 1..4) {
-            currentIteration = generateNextIteration(currentIteration, 5, 2)
+            generateNextIteration(5, 2)
         }
 
         for (iteration in 1..3) {
-            currentIteration = generateNextIteration(currentIteration, 5, -1)
+            generateNextIteration(5, -1)
         }
 
-//        writeToFile(currentIteration, File("automata.txt"))
+        countAndMeasureRooms()
 
-        if (floodFill) {
-           floodFill(currentIteration)
-        }
+        floodFill()
 
         writeToFile(currentIteration, File("automata.txt"), true)
 
-        connectIsolatedCaves(currentIteration)
+        connectIsolatedCaves()
 
-//        writeToFile(currentIteration, File("automata.txt"), true)
+        writeToFile(currentIteration, File("automata.txt"), true)
 
         return currentIteration
     }
 
 
-    fun generateNextIteration(currentMap: Array<Array<Char>>, closeWalls: Int, farWalls: Int): Array<Array<Char>> {
-        var nextIteration = Array(currentMap.size, { Array(currentMap[0].size, { '.' }) })
+    fun generateNextIteration(closeWalls: Int, farWalls: Int) {
+        var nextIteration = Array(currentIteration.size, { Array(currentIteration[0].size, { '.' }) })
 
-        val yLength = 0..currentMap.size - 1
-        val xLength = 0..currentMap[0].size - 1
+        val yLength = 0..currentIteration.size - 1
+        val xLength = 0..currentIteration[0].size - 1
 
         for (y in yLength) {
             for (x in xLength) {
-                val wallsClose = checkNeighbours(currentMap, x, y, closeWalls)
+                val wallsClose = checkNeighbours(currentIteration, x, y, closeWalls)
                 var wallsFar = false
                 if (farWalls != -1) {
-                    wallsFar = checkFarNeighbours(currentMap, x, y, farWalls)
+                    wallsFar = checkFarNeighbours(currentIteration, x, y, farWalls)
                 }
                 if (wallsClose || wallsFar) {
                     nextIteration[y][x] = '#'
                 }
             }
         }
-
-        return nextIteration
+        currentIteration = nextIteration
     }
 
     fun checkNeighbours(currentMap: Array<Array<Char>>, currentX: Int, currentY: Int, allowedWalls: Int): Boolean {
@@ -136,20 +157,20 @@ class CellularAutomata {
         }
     }
 
-    fun floodFill(array: Array<Array<Char>>, oldChar: Char = '.', newChar: Char = ' ') {
+    fun floodFill(oldChar: Char = '.', newChar: Char = ' ') {
 
         var rand = Random()
-        var xLength = array[0].size
-        var yLength = array.size
+        var xLength = currentIteration[0].size
+        var yLength = currentIteration.size
         var x: Int
         var y: Int
 
         do {
             x = rand.nextInt(xLength - 2) + 1
             y = rand.nextInt(yLength - 2) + 1
-        } while (array[y][x] != oldChar)
+        } while (currentIteration[y][x] != oldChar)
 
-        flood(array, x, y, oldChar, newChar)
+        flood(currentIteration, x, y, oldChar, newChar)
     }
 
     fun flood(array: Array<Array<Char>>, x: Int, y: Int, origChar: Char, newChar: Char) {
@@ -176,23 +197,23 @@ class CellularAutomata {
         }
     }
 
-    fun connectIsolatedCaves(array: Array<Array<Char>>) {
-        while (hasUnconnectedFloor(array)) {
+    fun connectIsolatedCaves() {
+        while (hasUnconnectedFloor()) {
 
-            floodFill(array, '.', '0')
+            floodFill('.', '0')
             var isolatedFloors = ArrayList<IsolatedFloor>()
 
-            for (y in 0..array.size - 1) {
-                for (x in 0..array[y].size - 1) {
-                    if (array[y][x] == '0') {
+            for (y in 0..currentIteration.size - 1) {
+                for (x in 0..currentIteration[y].size - 1) {
+                    if (currentIteration[y][x] == '0') {
                         var floor = IsolatedFloor(x, y)
-                        findShortestPath(array, floor)
+                        findShortestPath(currentIteration, floor)
                         isolatedFloors.add(floor)
                     }
                 }
             }
 
-            var shortestSoFar = if (array.size > array[0].size) array.size else array[0].size
+            var shortestSoFar = if (currentIteration.size > currentIteration[0].size) currentIteration.size else currentIteration[0].size
             var shortestCandidates = ArrayList<IsolatedFloor>()
 
             for (floor in isolatedFloors) {
@@ -219,19 +240,19 @@ class CellularAutomata {
             }
 
             if (closestFloor.dNorth <= closestFloor.dWest && closestFloor.dNorth <= closestFloor.dEast && closestFloor.dNorth <= closestFloor.dSouth) {
-                connectFloor(array, closestFloor, isNorth = true)
+                connectFloor(currentIteration, closestFloor, isNorth = true)
             }
             if (closestFloor.dSouth <= closestFloor.dWest && closestFloor.dSouth <= closestFloor.dEast && closestFloor.dSouth <= closestFloor.dNorth) {
-                connectFloor(array, closestFloor, isSouth = true)
+                connectFloor(currentIteration, closestFloor, isSouth = true)
             }
             if (closestFloor.dEast <= closestFloor.dWest && closestFloor.dEast <= closestFloor.dNorth && closestFloor.dEast <= closestFloor.dSouth) {
-                connectFloor(array, closestFloor, isEast = true)
+                connectFloor(currentIteration, closestFloor, isEast = true)
             }
             if (closestFloor.dWest <= closestFloor.dEast && closestFloor.dWest <= closestFloor.dNorth && closestFloor.dWest <= closestFloor.dSouth) {
-                connectFloor(array, closestFloor, isWest = true)
+                connectFloor(currentIteration, closestFloor, isWest = true)
             }
 
-            floodFill(array, '0')
+            floodFill('0')
         }
     }
 
@@ -259,8 +280,8 @@ class CellularAutomata {
         }
     }
 
-    fun hasUnconnectedFloor(array: Array<Array<Char>>): Boolean {
-        for (xline in array) {
+    fun hasUnconnectedFloor(): Boolean {
+        for (xline in currentIteration) {
             for (x in xline) {
                 if (x == '.') {
                     return true
@@ -309,19 +330,61 @@ class CellularAutomata {
         }
     }
 
-    data class IsolatedFloor(val x: Int, val y: Int, var dNorth: Int = 1000, var dSouth: Int = 1000, var dWest: Int = 1000, var dEast: Int = 1000)
+    fun countAndMeasureRooms() {
+        val WORKING = 'w'
+        val DONE = 'd'
 
-    fun printCurrentMap(currentMap: Array<Array<Char>>) {
-        println()
-        println()
+        while (hasUnconnectedFloor()) {
+            var x = 0
+            var y = 0
 
-        for (currentArray in currentMap) {
-            for (currentChar in currentArray) {
-                print(currentChar)
+            for (currentY in 0..currentIteration.size - 1) {
+                for (currentX in 0..currentIteration[currentY].size - 1) {
+                    if (currentIteration[currentY][currentX] == '.') {
+                        x = currentX
+                        y = currentY
+                        break
+                    }
+                }
             }
-            println()
+
+            flood(currentIteration, x, y, '.', WORKING)
+
+            val floors = ArrayList<FloorTile>()
+            var size = 0
+
+            for (currentY in 0..currentIteration.size - 1) {
+                for (currentX in 0..currentIteration[currentY].size - 1) {
+                    if (currentIteration[currentY][currentX] == WORKING) {
+                        val floorTile = FloorTile(currentX, currentY)
+                        floors.add(floorTile)
+                        size++
+                    }
+                }
+            }
+
+            val newRoom = Room(size, floors)
+            roomList.add(newRoom)
+
+            flood(currentIteration, x,y, WORKING, DONE)
         }
+
+        for (currentY in 0..currentIteration.size - 1) {
+            for (currentX in 0..currentIteration[currentY].size - 1) {
+                if (currentIteration[currentY][currentX] == DONE) {
+                    currentIteration[currentY][currentX] = '.'
+                }
+            }
+        }
+
     }
+
+
+    data class IsolatedFloor(val x: Int, val y: Int, var dNorth: Int = Int.MAX_VALUE, var dSouth: Int = Int.MAX_VALUE, var dWest: Int = Int.MAX_VALUE, var dEast: Int = Int.MAX_VALUE)
+
+    data class FloorTile(val x: Int, val y: Int)
+
+    data class Room(val size: Int, val tiles: List<FloorTile>)
 
 }
 
