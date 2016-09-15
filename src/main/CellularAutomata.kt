@@ -13,6 +13,30 @@ fun main(args: Array<String>) {
 
 }
 
+fun flood(array: Array<Array<Char>>, x: Int, y: Int, origChar: Char, newChar: Char) {
+    if (origChar == newChar) {
+        return
+    }
+    if (array[y][x] != origChar) {
+        return
+    }
+
+    array[y][x] = newChar
+
+    if (x > 0) {
+        flood(array, x - 1, y, origChar, newChar)
+    }
+    if (x < array[0].size - 1) {
+        flood(array, x + 1, y, origChar, newChar)
+    }
+    if (y > 0) {
+        flood(array, x, y - 1, origChar, newChar)
+    }
+    if (y < array.size - 1) {
+        flood(array, x, y + 1, origChar, newChar)
+    }
+}
+
 class CellularAutomata {
 
     private var random: Random
@@ -37,16 +61,10 @@ class CellularAutomata {
     fun generatePreMap(sizeX: Int, sizeY: Int): Array<Array<Char>> {
         var preMap = Array(sizeY, { y -> Array(sizeX, { x -> getRandomMapThing(sizeX, sizeY, x, y) }) })
 
-//        for (y in 0..preMap.size - 1) {
-//            preMap[y][10] = '.'
-//            preMap[y][11] = '.'
-//        }
-
         return preMap
     }
 
     fun generateMap(): Array<Array<Char>> {
-        writeToFile(currentIteration, File("automata.txt"), true)
 
         for (iteration in 1..4) {
             generateNextIteration(5, 2)
@@ -59,8 +77,6 @@ class CellularAutomata {
         countAndMeasureRooms()
 
         floodFill()
-
-        writeToFile(currentIteration, File("automata.txt"), true)
 
         connectIsolatedCaves()
 
@@ -173,29 +189,7 @@ class CellularAutomata {
         flood(currentIteration, x, y, oldChar, newChar)
     }
 
-    fun flood(array: Array<Array<Char>>, x: Int, y: Int, origChar: Char, newChar: Char) {
-        if (origChar == newChar) {
-            return
-        }
-        if (array[y][x] != origChar) {
-            return
-        }
 
-        array[y][x] = newChar
-
-        if (x > 0) {
-            flood(array, x - 1, y, origChar, newChar)
-        }
-        if (x < array[0].size - 1) {
-            flood(array, x + 1, y, origChar, newChar)
-        }
-        if (y > 0) {
-            flood(array, x, y - 1, origChar, newChar)
-        }
-        if (y < array.size - 1) {
-            flood(array, x, y + 1, origChar, newChar)
-        }
-    }
 
     fun connectIsolatedCaves() {
         while (hasUnconnectedFloor()) {
@@ -385,7 +379,8 @@ class CellularAutomata {
     data class FloorTile(val x: Int, val y: Int)
 
     data class Room(val size: Int, val tiles: List<FloorTile>)
-
 }
+
+
 
 

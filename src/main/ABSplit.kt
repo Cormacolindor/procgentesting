@@ -4,11 +4,44 @@ import java.io.File
 import java.util.*
 
 fun main(args: Array<String>) {
+//    var horizontal = 0
+//    var vertical = 0
+//    var random = Random()
+//
+//    for (i in 0..10000) {
+//        var split = random.nextFloat() >= 0.5f
+//        when (split) {
+//            true -> horizontal++
+//            false -> vertical++
+//        }
+//    }
+//
+//    println("Horizontal: $horizontal, Vertical: $vertical")
+    var start = System.currentTimeMillis()
     File("automata.txt").writeText("")
+    File("absplitlevel.txt").writeText("")
     val dungeon = ABSplit.Dungeon(100, 100)
-    val array = dungeon.printString()
+    val array = dungeon.dungeonMap
+    var end = System.currentTimeMillis() - start
+    println("Time spent = $end")
 
-    writeToFile(array, File("absplitlevel.txt"))
+//    var xx = -1
+//    var yy = -1
+//
+//    loop@
+//    for (y in 0..array.size - 1) {
+//        for (x in 0..array[y].size - 1) {
+//            if (array[y][x] == ' ') {
+//                xx = x
+//                yy = y
+//                break@loop
+//            }
+//        }
+//    }
+//
+//    flood(array,xx,yy,' ', '*')
+
+    writeToFile(array, File("absplitlevel.txt"), true)
 }
 
 class ABSplit {
@@ -28,7 +61,7 @@ class ABSplit {
             return randomCoord + start
         }
 
-        enum class Direction{
+        enum class Direction {
             NORTH,
             SOUTH,
             EAST,
@@ -43,23 +76,22 @@ class ABSplit {
         var main: DungeonLeaf
         val sizeX: Int
         val sizeY: Int
+        val dungeonMap: Array<Array<Char>>
 
         constructor(sizeX: Int, sizeY: Int) {
             this.sizeX = sizeX
             this.sizeY = sizeY
+            dungeonMap = Array(sizeY, { y -> Array(sizeX, { x -> '*' }) })
             main = DungeonLeaf(this, 1, 0, sizeX, 0, sizeY, ABSplit.Companion.Direction.NONE)
             main.connectChildren()
-        }
 
-        fun printString(): Array<Array<Char>> {
-            val charArray = Array(sizeY, { Array(sizeX, { ' ' }) })
-            main.createString(charArray)
-
-            return charArray
         }
     }
 
     class DungeonLeaf {
+
+        data class Children(val achild: DungeonLeaf, val bchild: DungeonLeaf, val verticalSplit: Boolean)
+        data class FloorPair(val floorA: CellularAutomata.FloorTile, val floorB: CellularAutomata.FloorTile)
 
         val root: Dungeon
         val depth: Int
@@ -74,7 +106,7 @@ class ABSplit {
         var startY = 0
         var endY = 0
 
-        constructor(rootParent: Dungeon, depth: Int, startX: Int, endX: Int, startY: Int, endY: Int, edge:Direction) {
+        constructor(rootParent: Dungeon, depth: Int, startX: Int, endX: Int, startY: Int, endY: Int, edge: Direction) {
             this.root = rootParent
             this.depth = depth
             this.startX = startX
@@ -88,9 +120,17 @@ class ABSplit {
                 aChild = children.achild
                 bChild = children.bchild
                 verticalSplit = children.verticalSplit
+
+                println("Split ${if(verticalSplit) "vertical" else "horizontal"}")
                 this.contents = null
             } else {
                 this.contents = CellularAutomata(endX - startX, endY - startY)
+                for (y in startY..endY - 1) {
+                    for (x in startX..endX - 1) {
+                        root.dungeonMap[y][x] =
+                                contents.getArray()[y - startY][x - startX]
+                    }
+                }
                 verticalSplit = false
                 aChild = null
                 bChild = null
@@ -98,20 +138,9 @@ class ABSplit {
         }
 
         fun createChildren(): Children {
-            var xToYRatio = (endX - startX).toFloat() / (endY - startY).toFloat()
             var verticalSplit: Boolean
 
-            if (xToYRatio >= 2) {
-                verticalSplit = random.nextFloat() > 0.15f
-            } else if (xToYRatio <= 0.5f) {
-                verticalSplit = random.nextFloat() > 0.85f
-            } else {
-                verticalSplit = random.nextFloat() > 0.5f
-            }
-
-            if (verticalSplit && (endX - startX) < 20 || !verticalSplit && (endY - startY) < 20) {
-                verticalSplit = !verticalSplit
-            }
+            verticalSplit = random.nextFloat() >= 0.5f
 
             var splitCoord: Int
 
@@ -128,30 +157,96 @@ class ABSplit {
             }
         }
 
-        data class Children(val achild: DungeonLeaf, val bchild: DungeonLeaf, val verticalSplit: Boolean)
 
         fun connectChildren() {
             aChild?.connectChildren()
             bChild?.connectChildren()
 
             if (aChild != null && bChild != null) {
+                if (verticalSplit) {
+                    val mostEastFloors = ArrayList<CellularAutomata.FloorTile>()
+                    val mostWestFloors = ArrayList<CellularAutomata.FloorTile>()
 
-                println("Depth: $depth, Horizontal split: $verticalSplit, ChildA: ${aChild.contents?.getRoomList()?.size}, ChildB: ${bChild.contents?.getRoomList()?.size}")
+                    for (y in aChild.startY..aChild.endY - 1) {
+                        for (x in aChild.endX - 1 downTo aChild.startX) {
+                            if (root.dungeonMap[y][x] == ' ') {
+                                mostEastFloors.add(CellularAutomata.FloorTile(x, y))
+                                break
+                            }
+                        }
+                    }
+
+                    for (y in 0..bChild.endY - 1) {
+                        for (x in bChild.startX..bChild.endX - 1) {
+                            if (root.dungeonMap[y][x] == ' ') {
+                                mostWestFloors.add(CellularAutomata.FloorTile(x, y))
+                                break
+                            }
+                        }
+                    }
+
+                    val floorPairs = ArrayList<FloorPair>()
+
+                    for (e in mostEastFloors) {
+                        for (w in mostWestFloors) {
+                            if (e.y == w.y) {
+                                floorPairs.add(FloorPair(e, w))
+                            }
+                        }
+                    }
+
+                    val randomFloortile = floorPairs[random.nextInt(floorPairs.size)]
+
+                    connectRoomsEastWest(randomFloortile.floorA, randomFloortile.floorB)
+                }
+                if (!verticalSplit) {
+                    val mostSouthFloors = ArrayList<CellularAutomata.FloorTile>()
+                    val mostNorthFloors = ArrayList<CellularAutomata.FloorTile>()
+
+                    for (x in aChild.startX..aChild.endX - 1) {
+                        for (y in aChild.endY - 1 downTo startY) {
+                            if (root.dungeonMap[y][x] == ' ') {
+                                mostSouthFloors.add(CellularAutomata.FloorTile(x, y))
+                                break
+                            }
+                        }
+                    }
+
+                    for (x in bChild.startX..bChild.endX - 1) {
+                        for (y in bChild.startY..bChild.endY - 1) {
+                            if (root.dungeonMap[y][x] == ' ') {
+                                mostNorthFloors.add(CellularAutomata.FloorTile(x, y))
+                                break
+                            }
+                        }
+                    }
+
+                    val floorPairs = ArrayList<FloorPair>()
+
+                    for (s in mostSouthFloors) {
+                        for (n in mostNorthFloors) {
+                            if (s.x == n.x) {
+                                floorPairs.add(FloorPair(s, n))
+                            }
+                        }
+                    }
+
+                    val randomFloorTile = floorPairs[random.nextInt(floorPairs.size)]
+
+                    connectRoomsNorthSouth(randomFloorTile.floorA, randomFloorTile.floorB)
+                }
             }
         }
 
+        fun connectRoomsEastWest(floorA: CellularAutomata.FloorTile, floorB: CellularAutomata.FloorTile) {
+            for (x in floorA.x..floorB.x) {
+                root.dungeonMap[floorA.y][x] = ' '
+            }
+        }
 
-        fun createString(array: Array<Array<Char>>) {
-            aChild?.createString(array)
-            bChild?.createString(array)
-
-            if (aChild == null && bChild == null && contents != null) {
-                val charArray = contents.getArray()
-                for (currentY in startY..(endY - 1)) {
-                    for (currentX in startX..(endX - 1)) {
-                        array[currentY][currentX] = charArray[currentY - startY][currentX - startX]
-                    }
-                }
+        fun connectRoomsNorthSouth(floorA: CellularAutomata.FloorTile, floorB: CellularAutomata.FloorTile) {
+            for (y in floorA.y..floorB.y) {
+                root.dungeonMap[y][floorA.x] = ' '
             }
         }
     }
